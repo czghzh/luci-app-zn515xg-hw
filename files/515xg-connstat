@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# ZNXT ZN515XG-D - per-protocol connection and hardware offload counters.
+#
+# Called by the LuCI overview page (resources/hardware_status.js) through
+# rpcd's file.exec.  Emits key=value lines on stdout:
+#
+#   tcp_total=<nf_conntrack entries>   tcp_npu=<HW offloaded entries>
+#   udp_total=<nf_conntrack entries>   udp_npu=<HW offloaded entries>
+#   pon_rx_bytes=<octets>              pon_tx_bytes=<octets>
+#
+# "total" counts the conntrack entries of that L4 protocol (IPv4 and IPv6
+# together), "npu" the subset the Airoha PPE has taken over in hardware -
+# those carry the [HW_OFFLOAD] status flag, since the PPE registers itself as
+# an nftables flowtable hardware offload device (ndo_setup_tc / TC_SETUP_FT in
+# airoha_eth.c).  Other protocols (icmp, gre, ...) are not counted.
+#
+# This has to run as a helper: /proc/net/nf_conntrack is a pseudo file
+# reporting st_size 0, and rpcd's file.read only returns the first 4 KiB of
+# such files.
+#
+# The optical uplink octet counters ride along in the same exec so the page can
+# derive the up/down rate from the delta between two polls without a second
+# rpcd round trip.  Note the ACL grants exec on this script, not read on the
+# sysfs attributes, so those are *not* readable from LuCI directly.
+# The two lines are omitted when the interface is absent, which makes the page
+# fall back to "不可用" instead of reporting a bogus 0.
+
+CT=/proc/net/nf_conntrack
+PON_IF=pon0
+PON_STAT=/sys/class/net/$PON_IF/statistics
+
+tcp_total=0
+tcp_npu=0
+udp_total=0
+udp_npu=0
+
+if [ -r "$CT" ]; then
+	set -- $(awk '
+		$3 == "tcp" { t++; if ($0 ~ /\[HW_OFFLOAD\]/) tn++ }
+		$3 == "udp" { u++; if ($0 ~ /\[HW_OFFLOAD\]/) un++ }
+		END { print t + 0, tn + 0, u + 0, un + 0 }
+	' "$CT" 2>/dev/null)
+	tcp_total=${1:-0}
+	tcp_npu=${2:-0}
+	udp_total=${3:-0}
+	udp_npu=${4:-0}
+fi
+
+echo "tcp_total=$tcp_total"
+echo "tcp_npu=$tcp_npu"
+echo "udp_total=$udp_total"
+echo "udp_npu=$udp_npu"
+
+if [ -r "$PON_STAT/rx_bytes" ]; then
+	echo "pon_rx_bytes=$(cat "$PON_STAT/rx_bytes" 2>/dev/null)"
+	echo "pon_tx_bytes=$(cat "$PON_STAT/tx_bytes" 2>/dev/null)"
+fi

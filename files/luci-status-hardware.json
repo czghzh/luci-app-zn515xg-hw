@@ -1,0 +1,22 @@
+{
+	"luci-status-hardware": {
+		"description": "Grant read access to the board sensors and exec access to the connection counter helper used by the overview page",
+		"read": {
+			"file": {
+				"/sys/class/thermal/thermal_zone*/temp": [ "read" ],
+				"/sys/devices/virtual/thermal/thermal_zone*/temp": [ "read" ],
+				"/sys/class/hwmon/hwmon*/name": [ "read" ],
+				"/sys/class/hwmon/hwmon*/temp1_input": [ "read" ],
+				"/sys/devices/*/ieee80211/phy*/hwmon*/name": [ "read" ],
+				"/sys/devices/*/ieee80211/phy*/hwmon*/temp1_input": [ "read" ],
+				"/sys/kernel/debug/airoha-xpon-pon0/frontend": [ "read" ],
+				"/sys/kernel/debug/ppe/config": [ "read" ],
+				"/proc/stat": [ "read" ],
+				"/usr/sbin/515xg-connstat": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "read", "exec" ]
+			}
+		}
+	}
+}
