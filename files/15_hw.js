@@ -127,8 +127,14 @@ var cSurface = css('background-color-high', '#ffffff');
 var cCardBg  = css('background-color-medium', '#f9f9f9');
 var cBorder  = css('border-color-low', '#eeeeee');
 var cTrack   = css('border-color-low', '#eeeeee');
-var cLabel   = css('text-color-low', '#bfbfbf');
-var cText    = css('text-color-medium', '#808080');
+/* One muted grey, on purpose.  This block used to carry two - text-color-low
+ * for captions and text-color-medium for the value labels - which put a lighter
+ * grey (`#bfbfbf`) next to a darker one (`#808080`) in the same card.  The user
+ * circled the darker pair (TCP / UDP) and asked for everything to match:
+ * 「它的字体灰色程度比其他的灰一点点，我很喜欢，反而看得更清楚」.  Merging the two
+ * into a single token is what keeps them from drifting apart again - there is no
+ * longer a "caption grey" to accidentally set differently. */
+var cMuted   = css('text-color-medium', '#808080');
 var cStrong  = css('text-color-highest', '#000000');
 var cAccent  = css('primary-color-high', '#1976d2');
 var cHot     = css('error-color-high', 'rgb(246, 43, 18)');
@@ -150,8 +156,8 @@ var S_CARD_GRID = 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr
  * pane instead of widening it past the flex-basis split. */
 var S_SURFACE   = 'min-width: 0; background: ' + cSurface + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
 var S_CARD      = 'background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px; min-width: 0';
-var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';
-var S_EMPTY     = 'font-size: 13px; color: ' + cLabel;
+var S_CARD_TITLE = 'font-size: 12px; color: ' + cMuted + '; margin-bottom: 8px';
+var S_EMPTY     = 'font-size: 13px; color: ' + cMuted;
 /* Every card's *leading figure* is set at this one size - the CPU percentage,
  * the TCP/UDP counts, the two temperatures and the uplink rate - so the four
  * cards read as one set.  Only the leading figure is promoted; its unit and any
@@ -162,8 +168,8 @@ var S_EMPTY     = 'font-size: 13px; color: ' + cLabel;
  * for a card that wants its own colour on the figure. */
 var S_BIG_BASE  = 'font-size: 24px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums';
 var S_BIG       = S_BIG_BASE + '; color: ' + cStrong;
-var S_UNIT      = 'font-size: 12px; color: ' + cLabel;
-var S_NOTE      = 'font-size: 11px; color: ' + cLabel;
+var S_UNIT      = 'font-size: 12px; color: ' + cMuted;
+var S_NOTE      = 'font-size: 11px; color: ' + cMuted;
 var S_TRACK     = 'height: 4px; margin-top: 4px; border-radius: 2px; background: ' + cTrack + '; overflow: hidden';
 /* The two *secondary* readings sit one step below S_BIG: the CPU clock next to
  * the big percentage, and the offloaded-flow count behind the TCP/UDP figure.
@@ -174,15 +180,15 @@ var S_SECOND    = '16px';
 /* The offloaded-flow count is a good-news reading, so the *number* gets the
  * theme's success colour.  The "硬件卸载" label itself stays in the muted label
  * grey it shares with the other captions - only the value is coloured. */
-var S_OFFLOAD     = 'font-size: 11px; color: ' + cLabel;
+var S_OFFLOAD     = 'font-size: 11px; color: ' + cMuted;
 var S_OFFLOAD_NUM = 'font-size: ' + S_SECOND + '; color: ' + cCool + '; font-weight: 600';
 /* The CPU clock is a *secondary* reading sitting next to the big percentage, so
  * it stays one step below S_BIG. */
 var S_RATE       = 'font-size: ' + S_SECOND + '; font-weight: 600; font-variant-numeric: tabular-nums; color: ' + cStrong;
-var S_RATE_UNIT  = 'font-size: 12px; color: ' + cLabel + '; margin-left: 3px';
+var S_RATE_UNIT  = 'font-size: 12px; color: ' + cMuted + '; margin-left: 3px';
 /* The muted caption in front of a reading ("上行速率", "TCP"), sized to sit on
  * the baseline of a 24 px figure without drawing attention to itself. */
-var S_RATE_LABEL = 'font-size: 12px; color: ' + cLabel;
+var S_RATE_LABEL = 'font-size: 12px; color: ' + cMuted;
 
 /* drop null/undefined children - the DOM helper is not relied upon for that */
 function kids() {
@@ -245,7 +251,7 @@ function buildInfo(pairs, pane) {
 				(wide ? '; grid-column: 1 / -1' : '')
 		}, [
 			E('span', {
-				'style': 'flex: 0 0 auto; min-width: 5em; font-size: 12px; color: ' + cLabel
+				'style': 'flex: 0 0 auto; min-width: 5em; font-size: 12px; color: ' + cMuted
 			}, [ label ]),
 			E('span', {
 				'style': 'flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; color: ' + cStrong
@@ -269,7 +275,7 @@ function buildTemps(hw) {
 			'style': 'margin-bottom: ' + ((i < temps.length - 1) ? '8px' : '0')
 		}, [
 			E('div', { 'style': 'display: flex; align-items: baseline; justify-content: space-between; gap: 8px' }, [
-				E('span', { 'style': 'font-size: 13px; color: ' + cText }, [ t.label ]),
+				E('span', { 'style': 'font-size: 13px; color: ' + cMuted }, [ t.label ]),
 				E('span', { 'style': S_BIG }, [
 					(t.value / 1000.0).toFixed(1),
 					E('span', { 'style': 'font-size: 12px; font-weight: 400; margin-left: 2px' }, [ '°C' ])
@@ -362,7 +368,7 @@ function buildConns(hw) {
 		rows.push(E('div', {
 			'style': 'display: flex; align-items: baseline; gap: 8px; margin-bottom: ' + (rows.length ? '0' : '8px')
 		}, kids(
-			E('span', { 'style': 'flex: 0 0 auto; min-width: 2.8em; font-size: 12px; color: ' + cText }, [ label ]),
+			E('span', { 'style': 'flex: 0 0 auto; min-width: 2.8em; font-size: 12px; color: ' + cMuted }, [ label ]),
 			E('span', { 'style': S_BIG }, [ String(c.total) ]),
 			sub
 		)));
