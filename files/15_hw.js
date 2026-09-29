@@ -25,11 +25,19 @@
  * this one - nothing is lost: the user can hide it with its own Hide button,
  * or reinstall this package.
  *
- * The layout is the stock block's field set with render() rewritten:
+ * The layout is the stock block's field set with render() rewritten into two
+ * side by side panes:
  *
- *   设备信息                        two column grid, all metadata
- *   温度 / CPU 占用率 / Pon 端口速率 / 连接数
- *                                   four metric cards below it
+ *   +----------------------------+   +---------------------+
+ *   | 温度          CPU 占用率    |   |  设备信息            |
+ *   |                            |   |  (single column of   |
+ *   | Pon 端口速率   连接数       |   |   board metadata)    |
+ *   +----------------------------+   +---------------------+
+ *
+ *       left, 3 parts                     right, 2 parts
+ *
+ * The left pane holds the four metric cards as a 2x2 grid, the right one the
+ * metadata surface.  On narrow screens the panes wrap onto separate rows.
  *
  * The sensor, counter, throughput and offload values come from
  * resources/hardware_status.js.
@@ -119,8 +127,13 @@ var cHot     = css('error-color-high', 'rgb(246, 43, 18)');
 var cWarm    = css('warn-color-high', '#efbd0b');
 var cCool    = css('success-color-high', 'rgb(0, 172, 89)');
 
-var S_INFO_GRID = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 18px';
-var S_CARD_GRID = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 10px';
+/* The metadata grid is a single column: it lives in the narrow right pane,
+ * where auto-fit would almost always collapse to one column anyway.
+ * The card grid is pinned to two columns so the four cards always read as a
+ * 2x2 square in the left pane; the old margin-top is gone because the panes
+ * are now separated by the flex container's gap. */
+var S_INFO_GRID = 'display: grid; grid-template-columns: 1fr; gap: 6px 18px';
+var S_CARD_GRID = 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px';
 var S_SURFACE   = 'background: ' + cSurface + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
 var S_CARD      = 'background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px; min-width: 0';
 var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';
@@ -423,6 +436,15 @@ return baseclass.extend({
 			card(_('连接数'),      buildConns(hw))
 		]);
 
-		return E('div', {}, [ buildInfo(info), metrics ]);
+		/* Left pane: the four cards as a 2x2 grid.  Right pane: the metadata
+		 * surface.  flex-grow 3 vs 2 is the 3:2 split the user asked for;
+		 * flex-wrap puts the panes on separate rows when the viewport gets
+		 * too narrow to give both their min width. */
+		var paneCards = E('div', { 'style': 'flex: 3 1 360px; min-width: 0' }, [ metrics ]);
+		var paneInfo  = E('div', { 'style': 'flex: 2 1 260px; min-width: 0' }, [ buildInfo(info) ]);
+
+		return E('div', {
+			'style': 'display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start'
+		}, [ paneCards, paneInfo ]);
 	}
 });

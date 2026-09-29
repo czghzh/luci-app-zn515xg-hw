@@ -1,25 +1,28 @@
 # luci-app-zn515xg-hw
 
-给 **ZNXT ZN515XG-D**（Airoha AN7581，XG-PON 光猫）的 LuCI「状态 → 总览」页面加一个
-**硬件监控** 块，替掉默认的「系统」块。
+给 **ZNXT ZN515XG-D**（Airoha AN7581，XG-PON 光猫）的 LuCI「状态 → 总览」页面重新排版：
+
+* **硬件监控** —— 替掉默认的「系统」块。左边 **2×2** 四张卡（**温度** (CPU + WiFi) /
+  **CPU 占用率** (含实时主频) / **Pon 端口速率** / **连接数** (含硬件卸载计数)），
+  右边一栏设备信息，约 **3:2**；窄屏自动上下堆叠。
+* **内存与储存** —— 把默认的「内存」「储存」两个块**合并成一块**，左右并排成卡片，
+  外观与上面的四张卡一致。
 
 ![状态总览](docs/screenshot.png)
-
-四张卡：**温度**（CPU + WiFi）/ **CPU 占用率**（含实时主频）/ **Pon 端口速率** / **连接数**（含硬件卸载计数）。
 
 <p align="center">
   <img src="docs/rate-card.png" alt="Pon 端口速率卡片" width="280">
 </p>
 
 不想刷机、只想知道长什么样：直接用浏览器打开 [`docs/preview.html`](docs/preview.html)
-（纯静态页，数据是设备上的实测值，无外部依赖）。
+（纯静态页，由 `mock-render.js` 跑**真的模块**生成，无外部依赖）。
 
 | 项 | 值 |
 | --- | --- |
 | 包名 | `luci-app-zn515xg-hw` |
-| 版本 | `1.0.0-r1` |
+| 版本 | `1.0.0-r2` |
 | 架构 | **`noarch`**（`PKGARCH:=all`，任何架构都能装） |
-| 依赖 | `libc`、`luci-mod-status`、`rpcd`、`rpcd-mod-file` |
+| 依赖 | `luci-mod-status`、`rpcd`、`rpcd-mod-file` |
 | 许可 | GPL-2.0-only |
 | 包格式 | apk v3（OpenWrt 24.10+ / ImmortalWrt 快照） |
 
@@ -43,7 +46,7 @@ make package/luci-app-zn515xg-hw/compile V=s
 产物在：
 
 ```
-bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r1.apk
+bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r2.apk
 ```
 
 > ⚠️ **改过 `files/` 里的文件之后，必须先 `clean` 再 `compile`。**
@@ -62,7 +65,7 @@ bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r1.apk
 ## 安装
 
 ```bash
-scp luci-app-zn515xg-hw-1.0.0-r1.apk root@<设备>:/tmp/
+scp luci-app-zn515xg-hw-1.0.0-r2.apk root@<设备>:/tmp/
 ssh root@<设备>
 ```
 
@@ -71,21 +74,21 @@ ssh root@<设备>
 1. 固件是 apk v3：`apk --version` → `apk-tools 3.x`
 2. LuCI 支持运行时目录扫描（否则装了也看不到卡片）：
    `grep -c fs.list /www/luci-static/resources/view/status/index.js` → 必须 ≥ 1
-3. 设备确实是 ZN515XG-D：卡片数据源是这个型号专有的（`pon0` 统计、`ppe/config`、
-   `mt7915` hwmon）。装到别的机器上**装得上但卡片显示「不可用」**，
-   而默认块已经被停用 ⇒ 主页会少一块。
+3. 设备确实是 ZN515XG-D：硬件监控卡片的数据源是这个型号专有的（`pon0` 统计、
+   `ppe/config`、`mt7915` hwmon）。装到别的机器上**装得上但卡片显示「不可用」**，
+   而默认块已经被停用 ⇒ 主页会少几块。
 
 ### 方式 A：导入公钥（一次，之后同类包直接装）
 
 ```bash
 cp public-key.pem /etc/apk/keys/ponwrt.pem      # 用新文件名，不要覆盖现有钥匙
-apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r1.apk
+apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r2.apk
 ```
 
 ### 方式 B：不导入公钥，本次跳过签名校验
 
 ```bash
-apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r1.apk
+apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r2.apk
 ```
 
 * 只在本次生效，下次装同类包还得带参数
@@ -98,7 +101,7 @@ apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r1.apk
 >
 > ```bash
 > mkdir -p /tmp/k && cp /etc/apk/keys/*.pem /tmp/k/ && cp public-key.pem /tmp/k/
-> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r1.apk
+> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r2.apk
 > ```
 
 ### 装完必做：重新登录一次 LuCI
@@ -112,30 +115,40 @@ apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r1.apk
 apk del luci-app-zn515xg-hw && reboot
 ```
 
-包脚本会把 `10_system.js.disabled` 改回 `10_system.js`，默认块原样回来。
+包脚本会把三个 `*.js.disabled` 改回 `*.js`，默认块原样回来。
 
 ---
 
 ## 它是怎么顶掉默认块的
 
-`view/status/include/10_system.js` 这个路径**属于 `luci-mod-status` 包**，而 apk 不允许
-两个包拥有同一个文件。于是：
+`view/status/include/` 下这三条路径**属于 `luci-mod-status` 包**，而 apk 不允许两个包
+拥有同一个文件，于是：
 
-1. **换文件名绕开** —— 本包装的是 `view/status/include/15_hw.js`。
+| 被顶掉的 stock 块 | 本包提供的新文件 |
+| --- | --- |
+| `10_system.js`（System） | `15_hw.js`（硬件监控） |
+| `20_memory.js`（Memory） | `22_memstore.js`（内存与储存） |
+| `25_storage.js`（Storage） | `22_memstore.js`（内存与储存） |
+
+1. **换文件名绕开** —— 本包装的是 `15_hw.js` / `22_memstore.js`。
    LuCI 总览页的 include 列表是**运行时扫目录**得来的
-   （`luci-mod-status/.../view/status/index.js`：`fs.list()` → 滤 `\.js$` → `L.require()`），
-   所以新文件名会被自动加载，不用去改任何属于别人的文件。
-2. **默认块靠包脚本停用** —— `post-install` / `post-upgrade` 把 `10_system.js`
-   **改名**成 `10_system.js.disabled`（`.disabled` 不匹配 `\.js$` 过滤器，于是不再渲染，
+   （`luci-mod-status/.../view/status/index.js`：`fs.list()` → 滤 `\.js$` → `sort()` →
+   `L.require()`），所以新文件名会被自动加载，而且 `22_` 正好落在原来 20/25 的位置，
+   不用去改任何属于别人的文件。
+2. **默认块靠包脚本停用** —— `post-install` / `post-upgrade` 把这三个
+   **改名**成 `*.js.disabled`（`.disabled` 不匹配 `\.js$` 过滤器，于是不再渲染，
    而且离还原只差一次改名）；`post-deinstall` 改回来。**不是覆盖** ——
    覆盖会被 `luci-mod-status` 的重装冲掉。
 
-> `title` 必须与默认块的 `System` 不同（本包用「硬件监控」）：include 的 `id` 就是 title，
-> 而 LuCI 拿它当 localStorage 里「这个块被隐藏了没有」的 key。沿用旧 title 会**继承旧的隐藏状态**。
+> `title` 必须与默认块的 `System` / `Memory` / `Storage` 都不同（本包用「硬件监控」和
+> 「内存与储存」）：include 的 `id` 就是 title，而 LuCI 拿它当 localStorage 里
+> 「这个块被隐藏了没有」的 key。沿用旧 title 会**继承旧的隐藏状态**。
 
 ---
 
 ## 数据源
+
+### 硬件监控
 
 | 卡片 | 来源 |
 | --- | --- |
@@ -150,6 +163,18 @@ apk del luci-app-zn515xg-hw && reboot
 
 速率卡里**上行在上、下行在下**，单位 Mibit/s，**不显示接口名**（页面上找不到 `pon0` 字样）。
 
+### 内存与储存
+
+口径与 stock 块**完全一致**，只是换了外壳并排显示：
+
+| 来源 | 用途 |
+| --- | --- |
+| `system.info` 的 `memory` / `swap` | 内存卡（Total Available / Used / Buffered / Cached / Swap free） |
+| `system.info` 的 `root` / `tmp` | 储存卡的前两行（Disk space / Temp space） |
+| `luci.getMountPoints` | 储存卡的其余挂载点，沿用 stock 的 `MountSkipList`（跳过 `/rom` `/tmp` `/dev` `/overlay` `/`） |
+
+这两个 rpcd 调用由 `luci-mod-status-index` 那个 ACL 组授权，本包**不需要**自己的 ACL 条目。
+
 ---
 
 ## 已知现象（都不是故障）
@@ -160,6 +185,9 @@ apk del luci-app-zn515xg-hw && reboot
   没有卸载流的时候它就是 0，有流量后自动变化，不是功能坏了。
 * 温度 / CPU 占用率 / 连接数三项只依赖 `/sys/class/thermal`、`/proc/stat`、
   `/proc/net/nf_conntrack`，任何 OpenWrt 设备都有；**只有速率卡和卸载标记是这型号专有的**。
+* **`luci-mod-status` 被重装后默认块会复活** —— 三个 stock 文件回到 `include/` 里，
+  会和本包的块**并存**。点默认块自己的「隐藏」，或重装本包
+  （`apk fix --reinstall luci-app-zn515xg-hw`）即可。
 
 ---
 
