@@ -165,14 +165,20 @@ var S_BIG       = S_BIG_BASE + '; color: ' + cStrong;
 var S_UNIT      = 'font-size: 12px; color: ' + cLabel;
 var S_NOTE      = 'font-size: 11px; color: ' + cLabel;
 var S_TRACK     = 'height: 4px; margin-top: 4px; border-radius: 2px; background: ' + cTrack + '; overflow: hidden';
+/* The two *secondary* readings sit one step below S_BIG: the CPU clock next to
+ * the big percentage, and the offloaded-flow count behind the TCP/UDP figure.
+ * They share this one size on purpose - the counters used to inherit 11px from
+ * their caption, which made the same kind of number look like two different
+ * ones a card apart. */
+var S_SECOND    = '16px';
 /* The offloaded-flow count is a good-news reading, so the *number* gets the
  * theme's success colour.  The "硬件卸载" label itself stays in the muted label
  * grey it shares with the other captions - only the value is coloured. */
 var S_OFFLOAD     = 'font-size: 11px; color: ' + cLabel;
-var S_OFFLOAD_NUM = 'color: ' + cCool + '; font-weight: 600';
+var S_OFFLOAD_NUM = 'font-size: ' + S_SECOND + '; color: ' + cCool + '; font-weight: 600';
 /* The CPU clock is a *secondary* reading sitting next to the big percentage, so
  * it stays one step below S_BIG. */
-var S_RATE       = 'font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: ' + cStrong;
+var S_RATE       = 'font-size: ' + S_SECOND + '; font-weight: 600; font-variant-numeric: tabular-nums; color: ' + cStrong;
 var S_RATE_UNIT  = 'font-size: 12px; color: ' + cLabel + '; margin-left: 3px';
 /* The muted caption in front of a reading ("上行速率", "TCP"), sized to sit on
  * the baseline of a 24 px figure without drawing attention to itself. */
