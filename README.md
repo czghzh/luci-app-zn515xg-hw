@@ -16,7 +16,15 @@
 </p>
 
 不想刷机、只想知道长什么样：直接用浏览器打开 [`docs/preview.html`](docs/preview.html)
-（纯静态页，由 `mock-render.js` 跑**真的模块**生成，无外部依赖）。
+（纯静态页，由 `mock-render.js` 跑**真的模块**生成，无外部依赖）：
+
+```bash
+node mock-render.js     # 重新生成 docs/preview.html（改了 files/ 之后跑一次）
+```
+
+每次跑出来的结果都是**逐字节一样**的：脚本把时钟钉在读数采集的那一刻
+（`FROZEN_NOW`），所以「改了模块却忘了重跑生成器」是可以被检出来的 ——
+`verify-pkg.sh` 第 10 节就是拿重跑的结果和提交的那份比字节。
 
 | 项 | 值 |
 | --- | --- |
@@ -85,6 +93,10 @@ ssh root@<设备>
 cp public-key.pem /etc/apk/keys/ponwrt.pem      # 用新文件名，不要覆盖现有钥匙
 apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r5.apk
 ```
+
+> `public-key.pem` 就在本仓库根目录 —— 是**公**钥（文件首行是 `BEGIN PUBLIC KEY`），
+> 本来就该公开；只有签名用的私钥留在打包机的源码树里。仓库根目录另外两个非打包文件
+> （`mock-render.js`、`docs/`）对编译没有影响：OpenWrt 只看 `Makefile` 和 `files/`。
 
 ### 方式 B：不导入公钥，本次跳过签名校验
 
