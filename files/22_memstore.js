@@ -54,8 +54,11 @@ function css(name, fallback) {
 var cCardBg = css('background-color-medium', '#f9f9f9');
 var cBorder = css('border-color-low', '#eeeeee');
 var cTrack  = css('border-color-low', '#eeeeee');
-var cLabel  = css('text-color-low', '#bfbfbf');
-var cText   = css('text-color-medium', '#808080');
+/* One muted grey, same as the 硬件监控 block next door: the two blocks sit on
+ * one page, so a lighter grey here next to a darker one there reads as a
+ * mistake.  See the long note in 15_hw.js - the user asked for the darker one
+ * (「比其他的灰一点点，反而看得更清楚」) and the fix was to stop keeping two. */
+var cMuted  = css('text-color-medium', '#808080');
 var cStrong = css('text-color-highest', '#000000');
 var cAccent = css('primary-color-high', '#1976d2');
 
@@ -68,12 +71,12 @@ var cAccent = css('primary-color-high', '#1976d2');
 var S_GRID     = 'display: flex; flex-wrap: wrap; gap: 12px';
 var S_CARD     = 'flex: 1 1 260px; min-width: 0; background: ' + cCardBg +
                  '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px';
-var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';
+var S_CARD_TITLE = 'font-size: 12px; color: ' + cMuted + '; margin-bottom: 8px';
 var S_BIG      = 'font-size: 24px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; color: ' + cStrong;
-var S_BIG_UNIT = 'font-size: 12px; color: ' + cLabel;
+var S_BIG_UNIT = 'font-size: 12px; color: ' + cMuted;
 var S_ROWS     = 'display: grid; gap: 8px; margin-top: 10px';
-var S_ROW_LABEL = 'font-size: 12px; color: ' + cText;
-var S_ROW_VALUE = 'font-size: 11px; color: ' + cLabel + '; font-variant-numeric: tabular-nums';
+var S_ROW_LABEL = 'font-size: 12px; color: ' + cMuted;
+var S_ROW_VALUE = 'font-size: 11px; color: ' + cMuted + '; font-variant-numeric: tabular-nums';
 var S_TRACK    = 'height: 4px; margin-top: 4px; border-radius: 2px; background: ' + cTrack + '; overflow: hidden';
 
 /* The stock storage block skipped these: the root file system and the overlay
@@ -187,7 +190,7 @@ return baseclass.extend({
 			memRows.push(usageRow(_('Swap free'), swap.free, swap.total));
 
 		if (!memRows.length)
-			memRows.push(E('div', { 'style': 'font-size: 13px; color: ' + cLabel }, [ _('不可用') ]));
+			memRows.push(E('div', { 'style': 'font-size: 13px; color: ' + cMuted }, [ _('不可用') ]));
 
 		var memPct = (memUsed != null && mem.total > 0)
 			? Math.round(memUsed / mem.total * 100) : null;
