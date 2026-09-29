@@ -59,7 +59,13 @@ var cText   = css('text-color-medium', '#808080');
 var cStrong = css('text-color-highest', '#000000');
 var cAccent = css('primary-color-high', '#1976d2');
 
-var S_GRID     = 'display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start';
+/* No align-items: flex-start here.  With flex-start each card stops at its own
+ * content height, and the memory card normally carries one row more than the
+ * storage card (storage only ever gains a row when a mount escapes
+ * MountSkipList), so the storage card visibly stopped short of the memory one.
+ * The default, stretch, makes both cards fill the row, so their bottom edges
+ * line up whichever side is longer. */
+var S_GRID     = 'display: flex; flex-wrap: wrap; gap: 12px';
 var S_CARD     = 'flex: 1 1 260px; min-width: 0; background: ' + cCardBg +
                  '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px';
 var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';

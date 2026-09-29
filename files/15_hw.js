@@ -39,6 +39,14 @@
  * The left pane holds the four metric cards as a 2x2 grid, the right one the
  * metadata surface.  On narrow screens the panes wrap onto separate rows.
  *
+ * Both panes are *direct* flex items of that row and stretch to its full
+ * height, so their bottom edges line up whichever side happens to carry more
+ * content - the side that runs long sets the height, the other follows.  The
+ * grid spreads the extra height over its two auto-sized rows, which is what
+ * brings the cards inside it down to the metadata surface's edge.  Do not wrap
+ * either pane in an extra div: the wrapper would stretch, the grid/surface
+ * inside it would not, and the bottom edges would drift apart again.
+ *
  * The sensor, counter, throughput and offload values come from
  * resources/hardware_status.js.
  *
@@ -131,10 +139,16 @@ var cCool    = css('success-color-high', 'rgb(0, 172, 89)');
  * where auto-fit would almost always collapse to one column anyway.
  * The card grid is pinned to two columns so the four cards always read as a
  * 2x2 square in the left pane; the old margin-top is gone because the panes
- * are now separated by the flex container's gap. */
+ * are now separated by the flex container's gap.
+ * Neither grid declares grid-template-rows, so both rows stay auto-sized -
+ * that is what lets the default align-content: stretch hand the extra height
+ * (when this pane is the shorter of the two) down to the cards, so they end
+ * flush with the pane beside them instead of floating short. */
 var S_INFO_GRID = 'display: grid; grid-template-columns: 1fr; gap: 6px 18px';
 var S_CARD_GRID = 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px';
-var S_SURFACE   = 'background: ' + cSurface + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
+/* min-width: 0 keeps long values (the firmware string) wrapping inside the
+ * pane instead of widening it past the flex-basis split. */
+var S_SURFACE   = 'min-width: 0; background: ' + cSurface + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
 var S_CARD      = 'background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px; min-width: 0';
 var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';
 var S_EMPTY     = 'font-size: 13px; color: ' + cLabel;
@@ -199,7 +213,10 @@ function unavailable() {
 	return E('div', { 'style': S_EMPTY }, [ _('不可用') ]);
 }
 
-function buildInfo(pairs) {
+/* `pane` is the flex sizing that turns the surface into the right pane of the
+ * two-column row; it is passed in from render() so the layout decision stays
+ * visible where the row is built. */
+function buildInfo(pairs, pane) {
 	var grid = E('div', { 'style': S_INFO_GRID });
 
 	for (var i = 0; i < pairs.length; i++) {
@@ -218,7 +235,7 @@ function buildInfo(pairs) {
 		]));
 	}
 
-	return E('div', { 'style': S_SURFACE }, [ grid ]);
+	return E('div', { 'style': (pane ? pane + '; ' : '') + S_SURFACE }, [ grid ]);
 }
 
 function buildTemps(hw) {
@@ -429,7 +446,13 @@ return baseclass.extend({
 			[ _('固件版本'), (L.isObject(boardinfo.release) ? boardinfo.release.description + ' / ' : '') + (luciversion || ''), true ]
 		];
 
-		var metrics = E('div', { 'style': S_CARD_GRID }, [
+		/* Both panes are the grids themselves - not wrappers around them - so
+		 * that align-items: stretch on the row below hands them the full row
+		 * height and the cards/surface inside can fill it.  A wrapper would
+		 * take the stretch while the grid inside stayed at its content
+		 * height, which is exactly the "one side stops short" look this
+		 * layout is meant to avoid. */
+		var paneCards = E('div', { 'style': 'flex: 3 1 360px; min-width: 0; ' + S_CARD_GRID }, [
 			card(_('温度'),        buildTemps(hw)),
 			card(_('CPU 占用率'),  buildUsage(hw, cpufreq)),
 			card(_('Pon 端口速率'),  buildRate(hw)),
@@ -439,12 +462,14 @@ return baseclass.extend({
 		/* Left pane: the four cards as a 2x2 grid.  Right pane: the metadata
 		 * surface.  flex-grow 3 vs 2 is the 3:2 split the user asked for;
 		 * flex-wrap puts the panes on separate rows when the viewport gets
-		 * too narrow to give both their min width. */
-		var paneCards = E('div', { 'style': 'flex: 3 1 360px; min-width: 0' }, [ metrics ]);
-		var paneInfo  = E('div', { 'style': 'flex: 2 1 260px; min-width: 0' }, [ buildInfo(info) ]);
+		 * too narrow to give both their min width.  align-items: stretch is
+		 * the default and is stated here because it is load-bearing: the
+		 * taller pane sets the row height and the shorter one grows to match,
+		 * keeping the two bottom edges parallel. */
+		var paneInfo = buildInfo(info, 'flex: 2 1 260px');
 
 		return E('div', {
-			'style': 'display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start'
+			'style': 'display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch'
 		}, [ paneCards, paneInfo ]);
 	}
 });
