@@ -155,8 +155,11 @@ var S_EMPTY     = 'font-size: 13px; color: ' + cLabel;
 /* Every card's *leading figure* is set at this one size - the CPU percentage,
  * the TCP/UDP counts, the two temperatures and the uplink rate - so the four
  * cards read as one set.  Only the leading figure is promoted; its unit and any
- * secondary reading (the CPU clock) stay small.  S_BIG_BASE is the colourless
- * half, so the temperature card can put its warm/hot/cool colour on it. */
+ * secondary reading (the CPU clock) stay small.  The temperature readings used
+ * to tint their figure warm/hot as well, which made them look like a different
+ * kind of value, so all figures are plain black now and the warm/hot colour
+ * lives only in the temperature bars.  S_BIG_BASE is the colourless half, kept
+ * for a card that wants its own colour on the figure. */
 var S_BIG_BASE  = 'font-size: 24px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums';
 var S_BIG       = S_BIG_BASE + '; color: ' + cStrong;
 var S_UNIT      = 'font-size: 12px; color: ' + cLabel;
@@ -261,7 +264,7 @@ function buildTemps(hw) {
 		}, [
 			E('div', { 'style': 'display: flex; align-items: baseline; justify-content: space-between; gap: 8px' }, [
 				E('span', { 'style': 'font-size: 13px; color: ' + cText }, [ t.label ]),
-				E('span', { 'style': S_BIG_BASE + '; color: ' + color }, [
+				E('span', { 'style': S_BIG }, [
 					(t.value / 1000.0).toFixed(1),
 					E('span', { 'style': 'font-size: 12px; font-weight: 400; margin-left: 2px' }, [ '°C' ])
 				])
