@@ -152,7 +152,14 @@ var S_SURFACE   = 'min-width: 0; background: ' + cSurface + '; border: 1px solid
 var S_CARD      = 'background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px; min-width: 0';
 var S_CARD_TITLE = 'font-size: 12px; color: ' + cLabel + '; margin-bottom: 8px';
 var S_EMPTY     = 'font-size: 13px; color: ' + cLabel;
-var S_BIG       = 'font-size: 24px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; color: ' + cStrong;
+/* Every card's *leading figure* is set at this one size - the CPU percentage,
+ * the TCP/UDP counts, the two temperatures and the uplink rate - so the four
+ * cards read as one set.  Only the leading figure is promoted; its unit and any
+ * secondary reading (the CPU clock) stay small.  S_BIG_BASE is the colourless
+ * half, so the temperature card can put its warm/hot/cool colour on it. */
+var S_BIG_BASE  = 'font-size: 24px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums';
+var S_BIG       = S_BIG_BASE + '; color: ' + cStrong;
+var S_UNIT      = 'font-size: 12px; color: ' + cLabel;
 var S_NOTE      = 'font-size: 11px; color: ' + cLabel;
 var S_TRACK     = 'height: 4px; margin-top: 4px; border-radius: 2px; background: ' + cTrack + '; overflow: hidden';
 /* The offloaded-flow count is a good-news reading, so the *number* gets the
@@ -160,10 +167,12 @@ var S_TRACK     = 'height: 4px; margin-top: 4px; border-radius: 2px; background:
  * grey it shares with the other captions - only the value is coloured. */
 var S_OFFLOAD     = 'font-size: 11px; color: ' + cLabel;
 var S_OFFLOAD_NUM = 'color: ' + cCool + '; font-weight: 600';
+/* The CPU clock is a *secondary* reading sitting next to the big percentage, so
+ * it stays one step below S_BIG. */
 var S_RATE       = 'font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: ' + cStrong;
-var S_RATE_UNIT  = 'font-size: 11px; color: ' + cLabel + '; margin-left: 3px';
-/* The direction caption inside the throughput card ("上行速率" / "下行速率").
- * It replaced the old arrow glyphs so the two rows read without guessing. */
+var S_RATE_UNIT  = 'font-size: 12px; color: ' + cLabel + '; margin-left: 3px';
+/* The muted caption in front of a reading ("上行速率", "TCP"), sized to sit on
+ * the baseline of a 24 px figure without drawing attention to itself. */
 var S_RATE_LABEL = 'font-size: 12px; color: ' + cLabel;
 
 /* drop null/undefined children - the DOM helper is not relied upon for that */
@@ -252,11 +261,9 @@ function buildTemps(hw) {
 		}, [
 			E('div', { 'style': 'display: flex; align-items: baseline; justify-content: space-between; gap: 8px' }, [
 				E('span', { 'style': 'font-size: 13px; color: ' + cText }, [ t.label ]),
-				E('span', {
-					'style': 'font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; color: ' + color
-				}, [
+				E('span', { 'style': S_BIG_BASE + '; color: ' + color }, [
 					(t.value / 1000.0).toFixed(1),
-					E('span', { 'style': 'font-size: 11px; font-weight: 400; margin-left: 2px' }, [ '°C' ])
+					E('span', { 'style': 'font-size: 12px; font-weight: 400; margin-left: 2px' }, [ '°C' ])
 				])
 			]),
 			bar(tempBarWidth(t.value), color)
@@ -277,7 +284,7 @@ function buildUsage(hw, freq) {
 		E('div', { 'style': 'display: flex; align-items: baseline; justify-content: space-between; gap: 8px' }, kids(
 			E('span', { 'style': 'display: flex; align-items: baseline; gap: 2px' }, [
 				E('span', { 'style': S_BIG }, [ hw.cpuusage.toFixed(1) ]),
-				E('span', { 'style': 'font-size: 12px; color: ' + cLabel }, [ '%' ])
+				E('span', { 'style': S_UNIT }, [ '%' ])
 			]),
 			freq != null ? E('span', {}, [
 				E('span', { 'style': S_RATE }, [ freq ]),
@@ -300,7 +307,7 @@ function rateLine(label, value, spaced) {
 	}, [
 		E('span', { 'style': S_RATE_LABEL }, [ label ]),
 		E('span', {}, [
-			E('span', { 'style': S_RATE }, [ value.toFixed(2) ]),
+			E('span', { 'style': S_BIG }, [ value.toFixed(2) ]),
 			E('span', { 'style': S_RATE_UNIT }, [ 'Mibit/s' ])
 		])
 	]);

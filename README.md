@@ -11,6 +11,7 @@
 ![状态总览](docs/screenshot.png)
 
 <p align="center">
+  <img src="docs/block-memstore.png" alt="内存与储存块：内存 4 行 / 储存 3 行，两张卡底边拉齐" width="760"><br>
   <img src="docs/rate-card.png" alt="Pon 端口速率卡片" width="280">
 </p>
 
