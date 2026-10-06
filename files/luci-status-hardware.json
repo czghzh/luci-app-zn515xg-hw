@@ -1,6 +1,6 @@
 {
 	"luci-status-hardware": {
-		"description": "Grant read access to the board sensors and exec access to the connection counter helper used by the overview page",
+		"description": "Grant read access to the board sensors and exec access to the connection counter and DHCP client helper used by the overview page",
 		"read": {
 			"file": {
 				"/sys/class/thermal/thermal_zone*/temp": [ "read" ],
@@ -12,7 +12,8 @@
 				"/sys/kernel/debug/airoha-xpon-pon0/frontend": [ "read" ],
 				"/sys/kernel/debug/ppe/config": [ "read" ],
 				"/proc/stat": [ "read" ],
-				"/usr/sbin/515xg-connstat": [ "exec" ]
+				"/usr/sbin/515xg-connstat": [ "exec" ],
+				"/usr/sbin/515xg-dhcphosts": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "read", "exec" ]

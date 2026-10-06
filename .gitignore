@@ -8,3 +8,6 @@
 .DS_Store
 *.swp
 *~
+
+# 项目工作数据（WorkBuddy 记忆/临时），不属于包内容
+.workbuddy/

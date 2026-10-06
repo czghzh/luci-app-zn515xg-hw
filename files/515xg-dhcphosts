@@ -1,0 +1,82 @@
+#!/bin/sh
+#
+# 515xg-dhcphosts - DHCPv4 在线客户端清单（含物理接入口）
+#
+# 用途：给 LuCI 的「DHCPv4 在线客户端」卡片一次性喂数据。
+#
+# 为什么不能只用 luci-rpc getDHCPLeases：
+#   它每条租约只给 hostname / macaddr / ipaddr / expires / interface，其中
+#   interface 是逻辑接口（br-lan），拿不到「wifi5G / wifi2.4G / lan1 / lan2」
+#   这种物理接入口。要区分，必须查二层：
+#
+#     bridge fdb show br br-lan   ->  MAC 挂在哪个物理口（lan1 / phy1-ap0 ...）
+#     /proc/net/arp               ->  该 IP 是否真的在线（Flags 0x2 = REACHABLE）
+#
+# 判据（用户 2026-10-07 定的三重确认）：
+#   1. 租约未过期（dhcp.leases 第一列是到期绝对时间戳，> now 才算）
+#   2. MAC 在 bridge fdb 里能查到普通条目
+#   3. IP 在 ARP 表里 flags 非 0（0x0 = INCOMPLETE，不算在线）
+#
+# 任一不满足的不计入；FDB 查不到物理口时接口列输出 "-"（不编造、不丢弃）。
+#
+# 输出：一行一个客户端，字段用 TAB 分隔，方便前端 split：
+#   hostname<TAB>ipaddr<TAB>macaddr<TAB>iface
+# 无客户端时输出空（前端按 0 显示）。无主机名（租约里是 "*"）时 hostname 输出 "-"。
+#
+# 数据源用 /tmp/dhcp.leases 而不是 ubus：字段固定、无工具依赖，且第一列
+# 就是到期时间戳，不用再跟 ubus 的「剩余秒数」换算。dnsmasq 与 odhcpd 都写
+# 这个文件，格式一致：<expiry> <mac> <ip> <hostname> <client-id>。
+#
+# （注意与 luci-rpc 的差别：那个 rpc 读完之后会把 hostname 的 "*" 规整成 null，
+#   直接读文件就得自己判 —— 见下面 while 循环里的 case。）
+#
+# 物理口 -> 显示名映射（2026-10-07 在 192.168.16.1 实机确认）：
+#   phy0-ap0 = 2.4G (Ch1)   -> "WIFI 2.4G"
+#   phy1-ap0 = 5G   (Ch36)  -> "WIFI 5G"
+#   lan1 / lan2 = br-lan 成员 -> "LAN 1" / "LAN 2"；lan3/lan4 是 WAN 侧，不在此列。
+#
+# 已知局限：走 NPU 硬件卸载的流，FDB 里可能只剩一条带 "offload" 标记的条目
+# （实测 armbian 就是：02:00:00:0e:28:01 dev lan1 offload master br-lan）。
+# 这类条目仍能取到端口，故不跳过 offload 行；跳过的只有 permanent（网桥自身
+# 与多播地址）。
+#
+
+BRIDGE=br-lan
+LEASEFILE=/tmp/dhcp.leases
+
+[ -f "$LEASEFILE" ] || exit 0
+
+NOW=$(date +%s)
+FDB=$(bridge fdb show br "$BRIDGE" 2>/dev/null)
+ARP=$(cat /proc/net/arp 2>/dev/null)
+
+# 物理口名 -> 显示名（大写形式，用户 2026-10-07 指定）
+map_iface() {
+	case "$1" in
+		phy0-ap0) echo "WIFI 2.4G" ;;
+		phy1-ap0) echo "WIFI 5G" ;;
+		'')       echo "-" ;;
+		lan[0-9]*) printf 'LAN %s\n' "${1#lan}" ;;
+		*)        echo "$1" ;;
+	esac
+}
+
+while read -r expiry mac ip hname rest; do
+	# 1) 租约未过期：第一列是绝对到期时间戳
+	case "$expiry" in ''|*[!0-9]*) continue ;; esac
+	[ "$expiry" -gt "$NOW" ] || continue
+
+	# 2) MAC 在 FDB 里有普通条目（非 permanent），取其物理口
+	_mac=$(echo "$mac" | tr 'A-Z' 'a-z')
+	port=$(echo "$FDB" | grep -i "^$_mac dev " | grep -v ' permanent' | awk '{print $3}' | head -1)
+
+	# 3) IP 在 ARP 表里 flags 非 0
+	flags=$(echo "$ARP" | awk -v ip="$ip" '$1 == ip {print $3; exit}')
+	[ -n "$flags" ] && [ "$flags" != "0x0" ] || continue
+
+	# 无主机名的客户端，dnsmasq 在租约文件里写的是 "*"（luci-rpc 那套会
+	# 提前把它规整成 null，这里直接读文件，得自己处理）。空串同理。
+	# 两者都显示成 "-"，跟卡片里其它占位符保持一致。
+	case "$hname" in ''|'*') hname='-' ;; esac
+	printf '%s\t%s\t%s\t%s\n' "$hname" "$ip" "$mac" "$(map_iface "$port")"
+done < "$LEASEFILE"

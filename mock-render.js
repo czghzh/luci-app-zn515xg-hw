@@ -11,6 +11,11 @@
  * apk ships, preview.html is not a hand-drawn mock-up - it is what the page
  * renders, minus the browser.
  *
+/usr/sbin/515xg-dhcphosts is *not* run here - the preview cannot shell out to a device - so the
+DHCP clients block is fed the helper's captured output instead (see DHCP_HOSTS_STDOUT).  That is
+the one place where the preview shows recorded data rather than a live read, and it is called out
+in the page footer as well.
+ *
  *   node mock-render.js            -> rewrites the preview next to this script
  *
  * The module directory and the output path are both auto-detected, so the very
@@ -18,6 +23,10 @@
  *
  *   package repository   ./files/                      -> ./docs/preview.html
  *   working archive      ./pkg/luci-app-zn515xg-hw/files -> ./preview.html
+ *
+ * (The archive layout only exists in old checkouts - the pkg/ copy was removed
+ * on 2026-10-07 when the package moved out of the 515xg tree; the probe is kept
+ * so an older archive still renders.)
  *
  * Re-run it after editing any module in files/ - the preview is generated, never
  * hand-edited, so a change to a module without re-running this is a lie.
@@ -51,6 +60,7 @@ const BASE = MODS.dir;
 const OUT_DIR = fs.existsSync(path.join(HERE, 'docs')) ? path.join(HERE, 'docs') : HERE;
 const HW_SRC       = path.join(BASE, 'hardware_status.js');
 const SYS_SRC      = path.join(BASE, '15_hw.js');
+const DHCP_SRC     = path.join(BASE, '23_dhcpclients.js');
 const MEMSTORE_SRC = path.join(BASE, '22_memstore.js');
 
 /* ------------------------------------------------------------------ *
@@ -86,6 +96,19 @@ const STAT2 = 'cpu  8310 0 24641 690715 92 0 29690 0 0 0\n';
  */
 const PON = { rx: 2870515021, tx: 13758212093, step_rx: 202969, step_tx: 4267276 };
 
+/* 515xg-dhcphosts output captured on the live device (192.168.16.1,
+ * 2026-10-07 02:5x).  Two clients, and between them they cover both branches
+ * of the port mapping: debian is associated on phy1-ap0 (5 GHz -> WIFI 5G),
+ * armbian is on a wired port (lan1 -> LAN 1).  Kept verbatim - TAB separated,
+ * exactly what the helper prints - so the parser is exercised on real input.
+ *
+ * Declared *before* global.fs, which dispatches on the command and returns
+ * this: a `const` referenced above its declaration would hit the temporal dead
+ * zone and throw. */
+const DHCP_HOSTS_STDOUT =
+	'debian\t192.168.16.210\t34:e1:2d:83:61:de\tWIFI 5G\n' +
+	'armbian\t192.168.16.143\t02:00:00:0e:28:01\tLAN 1\n';
+
 /* The clock is *pinned*, not merely frozen per run.  15_hw.js' info panel
  * renders `new Date(unixtime * 1000)` out of data[6], so seeding this from
  * Date.now() made every run produce a different preview.html - which means the
@@ -117,7 +140,16 @@ global.fs = {
 			return Promise.resolve(((++statCalls % 2) ? FILES[p] : STAT2).trim());
 		return Promise.resolve(FILES[p] !== undefined ? FILES[p].trim() : '');
 	},
-	exec() {
+	exec(cmd) {
+		/* two different helpers call exec(): hardware_status.js runs
+		 * 515xg-connstat, the DHCP clients block runs 515xg-dhcphosts.  The
+		 * call convention is positional (fs.js declares
+		 * params = [ 'command', 'params', 'env' ]), so the command is the
+		 * first argument - dispatch on it instead of always answering with
+		 * the counter payload. */
+		if (cmd === '/usr/sbin/515xg-dhcphosts')
+			return Promise.resolve({ code: 0, stdout: DHCP_HOSTS_STDOUT });
+
 		execCalls++;
 		fakeNow += 500;
 		return Promise.resolve({
@@ -246,6 +278,7 @@ function html(node) {
 (async () => {
 	const hw  = loadModule(HW_SRC);
 	const sys = loadModule(SYS_SRC);
+	const dhc = loadModule(DHCP_SRC);
 	const mem = loadModule(MEMSTORE_SRC);
 
 	const hwdata = await hw.read();
@@ -268,6 +301,10 @@ function html(node) {
 	/* the merged memory/storage block runs through its real load() as well, so
 	 * the rpc stub above is exercised the same way the browser would */
 	const memTree = await mem.render(await mem.load());
+
+	/* DHCP clients block: its load() goes through the file.exec stub, which
+	 * answers with the real helper output captured on the device */
+	const dhcpTree = await dhc.render(await dhc.load());
 
 	const page = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -345,11 +382,20 @@ ${html(hwTree).replace(/^\n+/, '')}
 ${html(memTree).replace(/^\n+/, '')}
     </div>
   </div>
+  <div class="cbi-section">
+    <div class="cbi-title"><h3>DHCPv4 在线客户端</h3></div>
+    <div class="cbi-section-node">
+${html(dhcpTree).replace(/^\n+/, '')}
+    </div>
+  </div>
 </div>
 <div class="footer">
 硬件状态数据源：thermal_zone0 / hwmon0(mt7915_phy0) 两路温度、/proc/stat 差分、
 515xg-connstat（连接数 + 光口字节计数）、ppe config npu_attached、luci getCPUInfo 里的实时主频。
 采样窗口 5 秒（L.env.pollinterval）；速率由两次采样的字节差分算出，单位 Mibit/s。<br>
+DHCPv4 客户端数据源：515xg-dhcphosts 的实机输出（2026-10-07 在 192.168.16.1 抓取）。
+接口列由 bridge fdb + /proc/net/arp 反查物理端口：phy1-ap0 -> WIFI 5G、phy0-ap0 -> WIFI 2.4G、
+lan1/lan2 -> LAN 1/LAN 2。<br>
 内存与储存数据源：system.info 的 memory/swap/root/tmp + luci.getMountPoints；
 跳过 /rom /tmp /dev /overlay / —— 与 stock 内存、储存块同一口径，只是换成了并排卡片。
 </div>
