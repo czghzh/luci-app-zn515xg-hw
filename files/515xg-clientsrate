@@ -1,0 +1,157 @@
+#!/bin/sh
+#
+# 515xg-clientsrate - 每个在线客户端的实时上/下行速率（Mibit/s）
+#
+# 用途：给 LuCI「在线客户端」卡片的「网速」列喂数据。前端按 MAC 与
+# 515xg-dhcphosts 的输出做连接（MAC 是这两个表的连接键）。
+#
+# 输出：一行一个客户端，TAB 分隔：
+#   mac<TAB>下行速率<TAB>上行速率
+# 单位是 Mibit/s（跟「硬件监控」Pon 端口速率一致，不要写成 Mbit/s）。
+# 取不到基线或取不到计数时输出 "-"，不编造、不猜。
+#
+# ---------------------------------------------------------------------------
+# 为什么不能用一个统一的计数源（2026-10-10 在 192.168.16.1 实测）
+# ---------------------------------------------------------------------------
+# 这台机器上 nft 有、iw 有，但 **iptables 和 tc 都没有**。更关键的是
+# flowtable 卸载是开着的：
+#
+#   nft list ruleset        -> flowtable ft / fb，都带 flags offload
+#   lsmod                   -> nft_flow_offload、nf_flow_table_inet 已加载
+#   bridge fdb show br-lan  -> 客户端条目带 "offload" 标记
+#
+# 走卸载的流不再经过 nft 的 forward 链，所以「按 MAC 建 nft 计数器」这条路
+# 实测会大概率读到 0 —— 不能用作数据源。于是分两类取：
+#
+#   1) 无线客户端（phy0-ap0 / phy1-ap0）：iw dev <ap> station get <mac>
+#      实测即便 FDB 里带 offload 标记，站点计数仍在增长（10s Δrx=453KB），
+#      因为 mt76 自己维护统计，不受卸载影响。这是最可靠的一路。
+#
+#   2) 有线客户端（lanN）：内核没有 per-MAC 计数（DSA 只有 per-port），
+#      所以在**该端口上只有这一个 MAC** 时，用端口计数近似；
+#      一个口挂多台设备（下面接了交换机）时无法区分，输出 "-"。
+#
+# 方向换算（AP 视角，别搞反）：
+#   rx bytes = AP 从客户端收到的字节 => 客户端**上行**
+#   tx bytes = AP 发给客户端的字节   => 客户端**下行**
+#
+# ---------------------------------------------------------------------------
+# 速率怎么算
+# ---------------------------------------------------------------------------
+# 计数是累计值，速率得取差值，所以要把上一次的快照留在 /tmp：
+#   <key><TAB>rx_bytes<TAB>tx_bytes<TAB>时刻
+# 时刻用 /proc/uptime 的秒数（两位小数），比 date +%s 的整秒精度高 —— 采样
+# 窗口只有几秒，用整秒会让速率抖 20%。
+#
+# 第一次调用（或快照过期 > STALE 秒、或计数回绕/站点重连导致差值为负）
+# 一律输出 "-"，同时把本次计数写进快照，下一次调用就能算出真实速率。
+# 这样卡片刚打开时会先显示一排 "-"，下一轮刷新就正常了 —— 比显示一个假的 0
+# 强，0 会被读成「真的没流量」。
+
+BRIDGE=br-lan
+SNAP=/tmp/515xg-clientsrate.snap
+STALE=120          # 快照比这还旧就当成没有基线（秒）
+CUR=$(mktemp /tmp/.clientsrate.XXXXXX)
+NEW=$(mktemp /tmp/.clientsrate.XXXXXX)
+
+trap 'rm -f "$CUR" "$NEW"' EXIT
+
+[ -f "$SNAP" ] || : > "$SNAP"
+
+now=$(awk '{print $1}' /proc/uptime)
+
+FDB=$(bridge fdb show br "$BRIDGE" 2>/dev/null | grep -v ' permanent')
+
+# 每个端口上的客户端数：有线口只有在独占（=1）时才能用端口计数。
+# 同一个 MAC 在 FDB 里会出现两行（"... master br-lan" 和 "... self"），
+# 所以先按「端口+MAC」去重再计数，否则一个口挂一台也会被数成两台。
+PORTCNT=$(echo "$FDB" | awk '
+	{ key = $3 " " $1; if (!(key in seen)) { seen[key]; c[$3]++ } }
+	END { for (p in c) print p, c[p] }
+')
+
+port_n_clients() {
+	echo "$PORTCNT" | awk -v p="$1" '$1 == p {print $2; exit}'
+}
+
+# 站点计数：iw dev <ap> station get <mac>
+# 输出里 "rx bytes:" / "tx bytes:" 的数值在第 3 个字段（$1=rx $2=bytes: $3=值）
+station_bytes() {
+	iw dev "$1" station get "$2" 2>/dev/null | awk '
+		/rx bytes:/ {r = $3}
+		/tx bytes:/ {t = $3}
+		END {if (r != "" && t != "") print r, t}
+	'
+}
+
+# 端口计数（有线兜底）
+port_bytes() {
+	r=$(cat "/sys/class/net/$1/statistics/rx_bytes" 2>/dev/null)
+	t=$(cat "/sys/class/net/$1/statistics/tx_bytes" 2>/dev/null)
+	[ -n "$r" ] && [ -n "$t" ] && echo "$r $t"
+}
+
+# 同一 MAC 在同一端口上会有两行（master 与 self），按「MAC+端口」去重，
+# 否则同一个客户端会输出两遍。
+echo "$FDB" | awk '
+	{ k = $1 " " $3; if (!(k in seen)) { seen[k]; print $1, $3 } }
+' | while read -r mac port; do
+	[ -n "$mac" ] && [ -n "$port" ] || continue
+
+	case "$port" in
+		phy*-ap*)
+			# 无线：站点计数
+			b=$(station_bytes "$port" "$mac")
+			;;
+		lan[0-9]*)
+			# 有线：只有该口独占时才用端口计数
+			n=$(port_n_clients "$port")
+			if [ "$n" = "1" ]; then
+				b=$(port_bytes "$port")
+			else
+				b=''
+			fi
+			;;
+		*)
+			b=''
+			;;
+	esac
+
+	[ -n "$b" ] || continue
+
+	set -- $b
+	printf '%s\t%s\t%s\n' "$mac" "$1" "$2"
+done > "$CUR"
+
+# 注意这里用 FILENAME == snapfile 而不是常见的 NR == FNR：快照文件为空时
+# NR == FNR 对第二个文件的第一条记录也成立（NR 和 FNR 都是 1），整份当前
+# 计数会被当成旧快照吃掉，于是首轮什么都不输出（实测踩到过）。
+awk -v now="$now" -v stale="$STALE" -v snapout="$NEW" -v snapfile="$SNAP" '
+	# 第一遍：读旧快照
+	FILENAME == snapfile { orx[$1] = $2; otx[$1] = $3; ots[$1] = $4; next }
+	{
+		mac = $1; rx = $2; tx = $3
+
+		# 新快照（不管能不能算速率都要写，下一轮才有基线）
+		printf "%s\t%s\t%s\t%s\n", mac, rx, tx, now > snapout
+
+		if (!(mac in ots)) { print mac "\t-\t-"; next }
+
+		dt = now - ots[mac]
+		if (dt <= 0 || dt > stale) { print mac "\t-\t-"; next }
+
+		drx = rx - orx[mac]
+		dtx = tx - otx[mac]
+
+		# 计数回绕 / 站点重连重置计数 -> 差值变负，这一轮不编数
+		if (drx < 0 || dtx < 0) { print mac "\t-\t-"; next }
+
+		# rx = 客户端 -> AP = 上行；tx = AP -> 客户端 = 下行
+		up   = drx * 8 / dt / 1048576
+		down = dtx * 8 / dt / 1048576
+
+		printf "%s\t%.2f\t%.2f\n", mac, down, up
+	}
+' "$SNAP" "$CUR"
+
+mv "$NEW" "$SNAP"

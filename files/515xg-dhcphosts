@@ -20,8 +20,32 @@
 # 任一不满足的不计入；FDB 查不到物理口时接口列输出 "-"（不编造、不丢弃）。
 #
 # 输出：一行一个客户端，字段用 TAB 分隔，方便前端 split：
-#   hostname<TAB>ipaddr<TAB>macaddr<TAB>iface
+#   hostname<TAB>ipaddr<TAB>ip6addr<TAB>macaddr<TAB>iface
 # 无客户端时输出空（前端按 0 显示）。无主机名（租约里是 "*"）时 hostname 输出 "-"。
+#
+# ---- IPv6 地址列（2026-10-07 加）----
+#
+# 取值来源：ip -6 neigh show dev br-lan，按 MAC 关联（这就是 IPv4 行与 IPv6
+# 地址的连接键 —— 实测宿主机 34:e1:2d:83:61:de 在设备侧同时有
+# 192.168.1.211 和 2409:8a55:48b0:3e50:facc:1f9f:a62b:6c10 两条，MAC 一致）。
+#
+# 过滤规则：
+#   * 丢掉链路本地 fe80:: —— 对内网展示无意义。
+#   * 丢掉 FAILED 状态 —— 那是探测不到、已失效的条目（实测 47 条里 17 条
+#     FAILED，绝大多数是过期的隐私扩展临时地址）。
+#   * 每台机器只取一个：按状态优先级 REACHABLE > DELAY > PROBE > STALE >
+#     其它，同一优先级取先出现的。
+#
+# 为什么用「状态优先」而不是「优先稳定地址」：ip -6 neigh 的输出**不带**
+# 地址标记（没有 mngtmpaddr / temporary 这类信息，那些只在 ip -6 addr 里，
+# 而那是节点自己的地址，设备侧看不到客户端的）。所以设备侧根本没法区分
+# SLAAC 稳定地址和隐私扩展临时地址，只能按「最近真的通过」来挑。
+# 实测：宿主机的 2409:...:6c10 本身就是随机化隐私地址（valid_lft 约 1.5h），
+# 但它就是宿主机当下在用的那个 —— 也正是用户要看到的那个。
+#
+# 已知行为（不是 bug）：开了隐私扩展的客户端（Linux/Android/Windows）会定期
+# 换临时地址，所以这一列的值会漂移；内核邻居表也会淘汰久不通信的条目，
+# 于是「IPv4 有、IPv6 空」是正常现象，此时输出 "-"。
 #
 # 数据源用 /tmp/dhcp.leases 而不是 ubus：字段固定、无工具依赖，且第一列
 # 就是到期时间戳，不用再跟 ubus 的「剩余秒数」换算。dnsmasq 与 odhcpd 都写
@@ -49,6 +73,7 @@ LEASEFILE=/tmp/dhcp.leases
 NOW=$(date +%s)
 FDB=$(bridge fdb show br "$BRIDGE" 2>/dev/null)
 ARP=$(cat /proc/net/arp 2>/dev/null)
+NEIGH6=$(ip -6 neigh show dev "$BRIDGE" 2>/dev/null)
 
 # 物理口名 -> 显示名（大写形式，用户 2026-10-07 指定）
 map_iface() {
@@ -59,6 +84,48 @@ map_iface() {
 		lan[0-9]*) printf 'LAN %s\n' "${1#lan}" ;;
 		*)        echo "$1" ;;
 	esac
+}
+
+# MAC -> 该 MAC 名下最值得显示的一个全局 IPv6 地址。
+#
+# 邻居表一行形如：
+#   2409:8a55:48b0:3e50:facc:1f9f:a62b:6c10 lladdr 34:e1:2d:83:61:de STALE
+#   2409:8a55:48b0:3e50:765b:c118:5c30:3e9b lladdr 02:00:00:0f:1b:01 router REACHABLE
+#
+# 取法：awk 先按 MAC 过滤出候选，按状态给权重排序，权重相同保持原行序
+# （awk 的 sort 用 asort 不稳定，这里改用「逐行比较、严格大于才替换」，
+#  等价于稳定取第一个最大值）。router 标记不参与 —— 那表示这条是别的
+# 路由器/中继，跟我们关心的「客户端」无关，但地址本身仍是有效的。
+#
+# 注意 awk 在 busybox 里没有 asort/sort，所以只用最保守的语法。
+pick_ip6() {
+	echo "$NEIGH6" | awk -v mac="$1" '
+		{
+			# 跳过链路本地与多播/未指定
+			if ($1 ~ /^fe80:/ || $1 ~ /^ff/ || $1 == "::") next
+
+			# 找 lladdr 后面的 MAC
+			ll = ""
+			for (i = 2; i <= NF; i++)
+				if ($i == "lladdr") { ll = $(i + 1); break }
+
+			if (tolower(ll) != mac) next
+
+			# 状态权重
+			w = 0
+			for (i = 2; i <= NF; i++) {
+				if ($i == "REACHABLE") { w = 5; break }
+				if ($i == "DELAY")     { w = 4; break }
+				if ($i == "PROBE")     { w = 3; break }
+				if ($i == "STALE")     { w = 2; break }
+				if ($i == "FAILED")    { w = 0; break }
+			}
+			if (w == 0) next
+
+			if (w > best) { best = w; addr = $1 }
+		}
+		END { if (addr != "") print addr }
+	'
 }
 
 while read -r expiry mac ip hname rest; do
@@ -74,9 +141,13 @@ while read -r expiry mac ip hname rest; do
 	flags=$(echo "$ARP" | awk -v ip="$ip" '$1 == ip {print $3; exit}')
 	[ -n "$flags" ] && [ "$flags" != "0x0" ] || continue
 
+	# 4) 该 MAC 名下的全局 IPv6（读不到就 "-"）
+	ip6=$(pick_ip6 "$_mac")
+	[ -n "$ip6" ] || ip6='-'
+
 	# 无主机名的客户端，dnsmasq 在租约文件里写的是 "*"（luci-rpc 那套会
 	# 提前把它规整成 null，这里直接读文件，得自己处理）。空串同理。
 	# 两者都显示成 "-"，跟卡片里其它占位符保持一致。
 	case "$hname" in ''|'*') hname='-' ;; esac
-	printf '%s\t%s\t%s\t%s\n' "$hname" "$ip" "$mac" "$(map_iface "$port")"
+	printf '%s\t%s\t%s\t%s\t%s\n' "$hname" "$ip" "$ip6" "$mac" "$(map_iface "$port")"
 done < "$LEASEFILE"

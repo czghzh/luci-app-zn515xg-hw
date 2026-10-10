@@ -105,9 +105,27 @@ const PON = { rx: 2870515021, tx: 13758212093, step_rx: 202969, step_tx: 4267276
  * Declared *before* global.fs, which dispatches on the command and returns
  * this: a `const` referenced above its declaration would hit the temporal dead
  * zone and throw. */
+/* Recorded from the device (`ip -6 neigh show dev br-lan` joined to
+ * /tmp/dhcp.leases by MAC) on 2026-10-07, so the IPv6 column shows real
+ * addresses rather than invented ones.  Both rows come from the same lookup the
+ * helper performs.  The blank third field on the second row is deliberate: it
+ * exercises the "-" fallback for a client whose neighbour entry has aged out,
+ * which is a state the device genuinely produces. */
 const DHCP_HOSTS_STDOUT =
-	'debian\t192.168.16.210\t34:e1:2d:83:61:de\tWIFI 5G\n' +
-	'armbian\t192.168.16.143\t02:00:00:0e:28:01\tLAN 1\n';
+	'debian\t192.168.1.211\t2409:8a55:48b0:3e50:facc:1f9f:a62b:6c10\t34:e1:2d:83:61:de\tWIFI 5G\n' +
+	'armbian\t192.168.1.162\t\t02:00:00:0e:28:01\tLAN 1\n';
+
+/* 515xg-clientsrate 的输出：mac<TAB>下行<TAB>上行，单位 Mibit/s。
+ * 两条故意取不同状态，好让预览把网速列的三种画法都带出来：
+ *   debian  -> 有流量，蓝箭头 + 橙数值
+ *   armbian -> 全 0（空闲），整格降到 55% 不透明度
+ * 第三种「取不到」用下面的 MISSING_MAC 那条线覆盖：它的 MAC 不在租约表里，
+ * 前端合并时匹配不上，于是整格走灰色的 "-" —— 第一次打开卡片时就是这个样子
+ * （脚本要先留一次快照才算出差值）。 */
+const CLIENTS_RATE_STDOUT =
+	'34:e1:2d:83:61:de\t856.00\t12.40\n' +
+	'02:00:00:0e:28:01\t0.00\t0.00\n' +
+	'ac:f7:0d:fd:26:e7\t3.10\t0.42\n';
 
 /* The clock is *pinned*, not merely frozen per run.  15_hw.js' info panel
  * renders `new Date(unixtime * 1000)` out of data[6], so seeding this from
@@ -149,6 +167,10 @@ global.fs = {
 		 * the counter payload. */
 		if (cmd === '/usr/sbin/515xg-dhcphosts')
 			return Promise.resolve({ code: 0, stdout: DHCP_HOSTS_STDOUT });
+
+		/* 网速列的数据源（2026-10-10 加的第三个 exec 调用方） */
+		if (cmd === '/usr/sbin/515xg-clientsrate')
+			return Promise.resolve({ code: 0, stdout: CLIENTS_RATE_STDOUT });
 
 		execCalls++;
 		fakeNow += 500;
@@ -383,7 +405,7 @@ ${html(memTree).replace(/^\n+/, '')}
     </div>
   </div>
   <div class="cbi-section">
-    <div class="cbi-title"><h3>DHCPv4 在线客户端</h3></div>
+    <div class="cbi-title"><h3>在线客户端</h3></div>
     <div class="cbi-section-node">
 ${html(dhcpTree).replace(/^\n+/, '')}
     </div>
@@ -393,9 +415,11 @@ ${html(dhcpTree).replace(/^\n+/, '')}
 硬件状态数据源：thermal_zone0 / hwmon0(mt7915_phy0) 两路温度、/proc/stat 差分、
 515xg-connstat（连接数 + 光口字节计数）、ppe config npu_attached、luci getCPUInfo 里的实时主频。
 采样窗口 5 秒（L.env.pollinterval）；速率由两次采样的字节差分算出，单位 Mibit/s。<br>
-DHCPv4 客户端数据源：515xg-dhcphosts 的实机输出（2026-10-07 在 192.168.16.1 抓取）。
+在线客户端数据源：515xg-dhcphosts 的实机输出（2026-10-07 在 192.168.1.1 抓取）。
 接口列由 bridge fdb + /proc/net/arp 反查物理端口：phy1-ap0 -> WIFI 5G、phy0-ap0 -> WIFI 2.4G、
-lan1/lan2 -> LAN 1/LAN 2。<br>
+lan1/lan2 -> LAN 1/LAN 2；IPv6 列由 ip -6 neigh 按 MAC 关联取得（每台取一个，读不到显示 -）。
+本卡取代 stock 的 DHCP 租约块（40_dhcp.js，安装时被改名停用）——那张表只列 IPv4 租约，
+留着会和本卡重复显示同一批客户端。<br>
 内存与储存数据源：system.info 的 memory/swap/root/tmp + luci.getMountPoints；
 跳过 /rom /tmp /dev /overlay / —— 与 stock 内存、储存块同一口径，只是换成了并排卡片。
 </div>

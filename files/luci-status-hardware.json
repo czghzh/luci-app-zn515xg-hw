@@ -13,7 +13,8 @@
 				"/sys/kernel/debug/ppe/config": [ "read" ],
 				"/proc/stat": [ "read" ],
 				"/usr/sbin/515xg-connstat": [ "exec" ],
-				"/usr/sbin/515xg-dhcphosts": [ "exec" ]
+				"/usr/sbin/515xg-dhcphosts": [ "exec" ],
+				"/usr/sbin/515xg-clientsrate": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "read", "exec" ]

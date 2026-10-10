@@ -9,11 +9,12 @@
 #                                       stock Memory (20_memory.js) and
 #                                       Storage (25_storage.js) tables into one
 #                                       side by side row of cards
-#   view/status/include/23_dhcpclients.js  the "DHCPv4 在线客户端" block; one
-#                                       row per online DHCPv4 client with its
-#                                       physical port (WIFI 5G / WIFI 2.4G /
-#                                       LAN 1 / LAN 2).  The port is not in the
-#                                       lease, so a helper (usr/sbin/
+#   view/status/include/23_dhcpclients.js  the "在线客户端" block; one row per
+#                                       online client with its IPv4 + IPv6
+#                                       address and its physical port
+#                                       (WIFI 5G / WIFI 2.4G / LAN 1 / LAN 2).
+#                                       The port is not in the lease, so a
+#                                       helper (usr/sbin/
 #                                       515xg-dhcphosts) joins the lease file
 #                                       with the bridge FDB and the ARP table.
 #                                       "23_" sorts right after 22_memstore.js,
@@ -26,17 +27,17 @@
 # installable with a plain `apk add`: the two packages never claim the same
 # path.
 #
-# The three stock blocks this package replaces (10_system.js, 20_memory.js,
-# 25_storage.js) are taken out of the scan by the package scripts below -
-# renamed to *.js.disabled - and put back on removal.  Both scripts are no-ops
-# during image build ($${IPKG_INSTROOT}) and when there is nothing to take
-# over, so installing this package is idempotent.
+# The four stock blocks this package replaces (10_system.js, 20_memory.js,
+# 25_storage.js, 40_dhcp.js) are taken out of the scan by the package scripts
+# below - renamed to *.js.disabled - and put back on removal.  Both scripts are
+# no-ops during image build ($${IPKG_INSTROOT}) and when there is nothing to
+# take over, so installing this package is idempotent.
 #
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-zn515xg-hw
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=8
+PKG_RELEASE:=9
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=czghzh <czghzh@users.noreply.github.com>
@@ -47,7 +48,7 @@ define Package/luci-app-zn515xg-hw
   SECTION:=luci
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
-  TITLE:=ZN515XG-D Status -> Overview rework (hardware + DHCP clients + memory & storage)
+  TITLE:=ZN515XG-D Status -> Overview rework (hardware + clients + memory & storage)
   DEPENDS:=+luci-mod-status +rpcd +rpcd-mod-file +ip-bridge
   PKGARCH:=all
 endef
@@ -56,12 +57,14 @@ define Package/luci-app-zn515xg-hw/description
   Reworks LuCI's Status -> Overview page for the ZN515XG-D:
   a "硬件监控" block with board temperatures (CPU + WiFi), CPU usage with the
   live clock, the uplink up/down throughput and the TCP/UDP connection
-  counters including their hardware offload share; a "DHCPv4 在线客户端"
-  block listing every online DHCPv4 client with its physical port; and a
+  counters including their hardware offload share; an "在线客户端"
+  block listing every online client with its IPv4 + IPv6 address and its
+  physical port; and a
   "内存与储存" block that puts the stock Memory and Storage tables side by
   side as cards.
-  The three stock blocks they replace are taken out of the way by the package
-  scripts and restored when the package is removed.
+  The four stock blocks they replace (System, Memory, Storage and DHCP Leases)
+  are taken out of the way by the package scripts and restored when the package
+  is removed.
 endef
 
 # This package ships plain scripts and JS only - there is no source to build.
@@ -81,6 +84,7 @@ define Package/luci-app-zn515xg-hw/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/515xg-connstat $(1)/usr/sbin/515xg-connstat
 	$(INSTALL_BIN) ./files/515xg-dhcphosts $(1)/usr/sbin/515xg-dhcphosts
+	$(INSTALL_BIN) ./files/515xg-clientsrate $(1)/usr/sbin/515xg-clientsrate
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./files/luci-status-hardware.json $(1)/usr/share/rpcd/acl.d/luci-status-hardware.json
 endef
@@ -92,12 +96,16 @@ endef
 #   10_system.js   -> replaced by 15_hw.js        ("硬件监控")
 #   20_memory.js   -> replaced by 22_memstore.js  ("内存与储存")
 #   25_storage.js  -> replaced by 22_memstore.js  ("内存与储存")
+#   40_dhcp.js     -> replaced by 23_dhcpclients.js ("在线客户端"); the stock
+#                     block only lists DHCPv4 leases, ours adds the IPv6 address
+#                     and the physical port, so keeping both would just show the
+#                     same clients twice.
 define Package/luci-app-zn515xg-hw/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
 INC=/www/luci-static/resources/view/status/include
-for f in 10_system 20_memory 25_storage; do
+for f in 10_system 20_memory 25_storage 40_dhcp; do
 	if [ -f "$$INC/$$f.js" ]; then
 		cp -p "$$INC/$$f.js" "$$INC/$$f.js.disabled" && rm -f "$$INC/$$f.js"
 	fi
@@ -112,7 +120,7 @@ define Package/luci-app-zn515xg-hw/postrm
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
 INC=/www/luci-static/resources/view/status/include
-for f in 10_system 20_memory 25_storage; do
+for f in 10_system 20_memory 25_storage 40_dhcp; do
 	if [ -f "$$INC/$$f.js.disabled" ]; then
 		cp -p "$$INC/$$f.js.disabled" "$$INC/$$f.js" && rm -f "$$INC/$$f.js.disabled"
 	fi

@@ -29,7 +29,7 @@ node mock-render.js     # 重新生成 docs/preview.html（改了 files/ 之后�
 | 项 | 值 |
 | --- | --- |
 | 包名 | `luci-app-zn515xg-hw` |
-| 版本 | `1.0.0-r7` |
+| 版本 | `1.0.0-r9` |
 | 架构 | **`noarch`**（`PKGARCH:=all`，任何架构都能装） |
 | 依赖 | `luci-mod-status`、`rpcd`、`rpcd-mod-file` |
 | 许可 | GPL-2.0-only |
@@ -55,7 +55,7 @@ make package/luci-app-zn515xg-hw/compile V=s
 产物在：
 
 ```
-bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r7.apk
+bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r9.apk
 ```
 
 > ⚠️ **改过 `files/` 里的文件之后，必须先 `clean` 再 `compile`。**
@@ -74,7 +74,7 @@ bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r7.apk
 ## 安装
 
 ```bash
-scp luci-app-zn515xg-hw-1.0.0-r7.apk root@<设备>:/tmp/
+scp luci-app-zn515xg-hw-1.0.0-r9.apk root@<设备>:/tmp/
 ssh root@<设备>
 ```
 
@@ -91,7 +91,7 @@ ssh root@<设备>
 
 ```bash
 cp public-key.pem /etc/apk/keys/ponwrt.pem      # 用新文件名，不要覆盖现有钥匙
-apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r7.apk
+apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
 ```
 
 > `public-key.pem` 就在本仓库根目录 —— 是**公**钥（文件首行是 `BEGIN PUBLIC KEY`），
@@ -101,7 +101,7 @@ apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r7.apk
 ### 方式 B：不导入公钥，本次跳过签名校验
 
 ```bash
-apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r7.apk
+apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
 ```
 
 * 只在本次生效，下次装同类包还得带参数
@@ -114,7 +114,7 @@ apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r7.apk
 >
 > ```bash
 > mkdir -p /tmp/k && cp /etc/apk/keys/*.pem /tmp/k/ && cp public-key.pem /tmp/k/
-> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r7.apk
+> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
 > ```
 
 ### 装完必做：重新登录一次 LuCI
@@ -188,6 +188,32 @@ apk del luci-app-zn515xg-hw && reboot
 
 这两个 rpcd 调用由 `luci-mod-status-index` 那个 ACL 组授权，本包**不需要**自己的 ACL 条目。
 
+### 在线客户端
+
+列序：**主机名 / IPv4 / MAC / 网速 / IPv6 / 接口**。前四列来自 `/usr/sbin/515xg-dhcphosts`
+（租约未过期 + FDB 能查到物理口 + ARP flags 非 0 三重确认），**网速**来自另一个脚本
+`/usr/sbin/515xg-clientsrate`，前端按 **MAC** 合并（MAC 就是这两张表的连接键）。
+
+| 客户端类型 | 速率来源 | 说明 |
+| --- | --- | --- |
+| 无线（`phy0-ap0` / `phy1-ap0`） | `iw dev <ap> station get <mac>` 的 rx/tx bytes | **实测不受 flowtable 卸载影响**，最可靠的一路 |
+| 有线（`lanN`） | `/sys/class/net/lanN/statistics/` | 内核没有 per-MAC 计数；**仅当该口独占一个 MAC 时**才用端口计数近似，一口多机输出 `-` |
+
+为什么不按 MAC 建 nft 计数器：设备上 flowtable 卸载是开着的（ruleset 里的 `ft` / `fb` 都带
+`flags offload`，FDB 条目带 `offload` 标记），卸载的流不再走 nft 的 forward 链，计数器基本读不到数。
+这台机器上 `tc` 和 `iptables` 也都没装。
+
+单位 **Mibit/s**，跟「硬件监控」的 Pon 端口速率一致。速率是两次采样的差值，所以脚本要在
+`/tmp/515xg-clientsrate.snap` 留一份快照 —— **刚打开卡片时网速列会先显示一排 `-`，
+下一次轮询就有数了**，这是预期的，不是故障。方向换算：`rx` = 客户端上行，`tx` = 客户端下行
+（都是 AP 视角）。
+
+样式（2026-10-10 定稿）：表头六格与**所有数据列**统一用主题主文字色
+（`--text-color-highest` —— 浅色主题下就是黑色，深色主题下是白色），表头和数据**整列左对齐**。
+唯一的彩色是网速的 `↓` `↑` 箭头（橙，`--orange-color-high`）和灰色的单位。
+网速数值定宽 `7ch` —— 这个定宽是为了让 `↓` / `↑` 两组箭头在**不同行之间**也落在同一竖线上
+（各行数值位数不同也不会跑偏）；空闲（↑0 ↓0）的整格淡化到 55% 透明度。
+
 ---
 
 ## 已知现象（都不是故障）
@@ -198,7 +224,7 @@ apk del luci-app-zn515xg-hw && reboot
   没有卸载流的时候它就是 0，有流量后自动变化，不是功能坏了。
 * 温度 / CPU 占用率 / 连接数三项只依赖 `/sys/class/thermal`、`/proc/stat`、
   `/proc/net/nf_conntrack`，任何 OpenWrt 设备都有；**只有速率卡和卸载标记是这型号专有的**。
-* **`luci-mod-status` 被重装后默认块会复活** —— 三个 stock 文件回到 `include/` 里，
+* **`luci-mod-status` 被重装后默认块会复活** —— 四个 stock 文件回到 `include/` 里，
   会和本包的块**并存**。点默认块自己的「隐藏」，或重装本包
   （`apk fix --reinstall luci-app-zn515xg-hw`）即可。
 
