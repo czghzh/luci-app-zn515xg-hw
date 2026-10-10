@@ -29,7 +29,7 @@ node mock-render.js     # 重新生成 docs/preview.html（改了 files/ 之后�
 | 项 | 值 |
 | --- | --- |
 | 包名 | `luci-app-zn515xg-hw` |
-| 版本 | `1.0.0-r9` |
+| 版本 | `1.0.0-r10` |
 | 架构 | **`noarch`**（`PKGARCH:=all`，任何架构都能装） |
 | 依赖 | `luci-mod-status`、`rpcd`、`rpcd-mod-file` |
 | 许可 | GPL-2.0-only |
@@ -55,7 +55,7 @@ make package/luci-app-zn515xg-hw/compile V=s
 产物在：
 
 ```
-bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r9.apk
+bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r10.apk
 ```
 
 > ⚠️ **改过 `files/` 里的文件之后，必须先 `clean` 再 `compile`。**
@@ -74,7 +74,7 @@ bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r9.apk
 ## 安装
 
 ```bash
-scp luci-app-zn515xg-hw-1.0.0-r9.apk root@<设备>:/tmp/
+scp luci-app-zn515xg-hw-1.0.0-r10.apk root@<设备>:/tmp/
 ssh root@<设备>
 ```
 
@@ -91,7 +91,7 @@ ssh root@<设备>
 
 ```bash
 cp public-key.pem /etc/apk/keys/ponwrt.pem      # 用新文件名，不要覆盖现有钥匙
-apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
+apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
 ```
 
 > `public-key.pem` 就在本仓库根目录 —— 是**公**钥（文件首行是 `BEGIN PUBLIC KEY`），
@@ -101,7 +101,7 @@ apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
 ### 方式 B：不导入公钥，本次跳过签名校验
 
 ```bash
-apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
+apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
 ```
 
 * 只在本次生效，下次装同类包还得带参数
@@ -114,7 +114,7 @@ apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
 >
 > ```bash
 > mkdir -p /tmp/k && cp /etc/apk/keys/*.pem /tmp/k/ && cp public-key.pem /tmp/k/
-> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r9.apk
+> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
 > ```
 
 ### 装完必做：重新登录一次 LuCI
@@ -210,9 +210,11 @@ apk del luci-app-zn515xg-hw && reboot
 
 样式（2026-10-10 定稿）：表头六格与**所有数据列**统一用主题主文字色
 （`--text-color-highest` —— 浅色主题下就是黑色，深色主题下是白色），表头和数据**整列左对齐**。
-唯一的彩色是网速的 `↓` `↑` 箭头（橙，`--orange-color-high`）和灰色的单位。
-网速数值定宽 `7ch` —— 这个定宽是为了让 `↓` / `↑` 两组箭头在**不同行之间**也落在同一竖线上
-（各行数值位数不同也不会跑偏）；空闲（↑0 ↓0）的整格淡化到 55% 透明度。
+唯一的彩色是网速的 `↑` `↓` 箭头（橙，`--orange-color-high`）和灰色的单位。
+
+两组速率的**顺序是 ↑上行在前、↓下行在后**。数值定宽 `7ch` —— 这个定宽是为了让
+两组箭头在**不同行之间**也各自落在同一竖线上（各行数值位数不同也不会跑偏，换序也不影响）；
+空闲（↑0 ↓0）的整格淡化到 55% 透明度。
 
 ---
 

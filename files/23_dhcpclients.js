@@ -180,11 +180,14 @@ function rateGroup(arrow, value) {
 }
 
 /* 网速单元格。三种状态：
- *   有速率 -> 蓝箭头 + 橙数值；上下行都是 0（空闲）时整格降到 55% 不透明度，
+ *   有速率 -> 橙箭头 + 深色数值；上下行都是 0（空闲）时整格降到 55% 不透明度，
  *             否则整列全彩，扫一眼看不出谁在跑流量。
  *   取不到 -> 灰色 "-"（第一次打开卡片时就是这样，脚本要先留一次快照才能算
  *             差值，下一轮刷新就有数了）。
- * 不画箭头也不写 0：那会被读成「真的没流量」。 */
+ * 不画箭头也不写 0：那会被读成「真的没流量」。
+ *
+ * 顺序：先 ↑上行、后 ↓下行（用户 2026-10-10 指定）。两组都定宽，所以换序不影响
+ * 各行之间箭头的竖线对齐 —— 上行在前也让「谁在往外传」这个更该看的数更靠左。 */
 function rateCell(rate) {
 	if (!rate || rate.down == null || rate.up == null)
 		return E('span', { 'style': S_RATE_NA }, [ '-' ]);
@@ -192,8 +195,8 @@ function rateCell(rate) {
 	var idle = (parseFloat(rate.down) === 0 && parseFloat(rate.up) === 0);
 
 	return E('span', { 'style': S_RATE + (idle ? '; opacity: .55' : '') }, [
-		rateGroup('↓', rate.down),
-		rateGroup('↑', rate.up)
+		rateGroup('↑', rate.up),
+		rateGroup('↓', rate.down)
 	]);
 }
 
