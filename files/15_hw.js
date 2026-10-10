@@ -123,7 +123,6 @@ function css(name, fallback) {
 	return 'var(--' + name + ', ' + fallback + ')';
 }
 
-var cSurface = css('background-color-high', '#ffffff');
 var cCardBg  = css('background-color-medium', '#f9f9f9');
 var cBorder  = css('border-color-low', '#eeeeee');
 var cTrack   = css('border-color-low', '#eeeeee');
@@ -154,7 +153,12 @@ var S_INFO_GRID = 'display: grid; grid-template-columns: 1fr; gap: 6px 18px';
 var S_CARD_GRID = 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px';
 /* min-width: 0 keeps long values (the firmware string) wrapping inside the
  * pane instead of widening it past the flex-basis split. */
-var S_SURFACE   = 'min-width: 0; background: ' + cSurface + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
+/* The metadata pane (主机名 / 型号 / 架构 / ...) carries the *same* grey surface as
+ * the four cards - it used to be --background-color-high (white), which made it
+ * read as a different kind of object sitting next to them (user, 2026-10-10).
+ * Only its padding differs: it is a dense two column list, not a card with a
+ * title, so it gets a little more room on the sides. */
+var S_SURFACE   = 'min-width: 0; background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 12px 14px';
 var S_CARD      = 'background: ' + cCardBg + '; border: 1px solid ' + cBorder + '; border-radius: 6px; padding: 10px 12px; min-width: 0';
 var S_CARD_TITLE = 'font-size: 12px; color: ' + cMuted + '; margin-bottom: 8px';
 var S_EMPTY     = 'font-size: 13px; color: ' + cMuted;

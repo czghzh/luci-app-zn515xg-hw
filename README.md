@@ -4,7 +4,9 @@
 
 * **硬件监控** —— 替掉默认的「系统」块。左边 **2×2** 四张卡（**温度** (CPU + WiFi) /
   **CPU 占用率** (含实时主频) / **Pon 端口速率** / **连接数** (含硬件卸载计数)），
-  右边一栏设备信息，约 **3:2**；窄屏自动上下堆叠。
+  右边一栏设备信息（主机名 / 型号 / 架构 / …），约 **3:2**；窄屏自动上下堆叠。
+  所有卡面（含设备信息栏）统一用 `--background-color-medium` 灰底 + 同款边框圆角，
+  视觉上是一套东西；只有设备信息栏的内边距略大（它是密排双列，不是带标题的卡片）。
 * **内存与储存** —— 把默认的「内存」「储存」两个块**合并成一块**，左右并排成卡片，
   外观与上面的四张卡一致。
 
@@ -29,7 +31,7 @@ node mock-render.js     # 重新生成 docs/preview.html（改了 files/ 之后�
 | 项 | 值 |
 | --- | --- |
 | 包名 | `luci-app-zn515xg-hw` |
-| 版本 | `1.0.0-r10` |
+| 版本 | `1.0.0-r11` |
 | 架构 | **`noarch`**（`PKGARCH:=all`，任何架构都能装） |
 | 依赖 | `luci-mod-status`、`rpcd`、`rpcd-mod-file` |
 | 许可 | GPL-2.0-only |
@@ -55,7 +57,7 @@ make package/luci-app-zn515xg-hw/compile V=s
 产物在：
 
 ```
-bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r10.apk
+bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r11.apk
 ```
 
 > ⚠️ **改过 `files/` 里的文件之后，必须先 `clean` 再 `compile`。**
@@ -74,7 +76,7 @@ bin/packages/<arch>/base/luci-app-zn515xg-hw-1.0.0-r10.apk
 ## 安装
 
 ```bash
-scp luci-app-zn515xg-hw-1.0.0-r10.apk root@<设备>:/tmp/
+scp luci-app-zn515xg-hw-1.0.0-r11.apk root@<设备>:/tmp/
 ssh root@<设备>
 ```
 
@@ -91,7 +93,7 @@ ssh root@<设备>
 
 ```bash
 cp public-key.pem /etc/apk/keys/ponwrt.pem      # 用新文件名，不要覆盖现有钥匙
-apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
+apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r11.apk
 ```
 
 > `public-key.pem` 就在本仓库根目录 —— 是**公**钥（文件首行是 `BEGIN PUBLIC KEY`），
@@ -101,7 +103,7 @@ apk add --no-cache /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
 ### 方式 B：不导入公钥，本次跳过签名校验
 
 ```bash
-apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
+apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r11.apk
 ```
 
 * 只在本次生效，下次装同类包还得带参数
@@ -114,7 +116,7 @@ apk add --allow-untrusted /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
 >
 > ```bash
 > mkdir -p /tmp/k && cp /etc/apk/keys/*.pem /tmp/k/ && cp public-key.pem /tmp/k/
-> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r10.apk
+> apk --keys-dir /tmp/k add /tmp/luci-app-zn515xg-hw-1.0.0-r11.apk
 > ```
 
 ### 装完必做：重新登录一次 LuCI
