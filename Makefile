@@ -28,16 +28,22 @@
 # path.
 #
 # The four stock blocks this package replaces (10_system.js, 20_memory.js,
-# 25_storage.js, 40_dhcp.js) are taken out of the scan by the package scripts
-# below - renamed to *.js.disabled - and put back on removal.  Both scripts are
-# no-ops during image build ($${IPKG_INSTROOT}) and when there is nothing to
-# take over, so installing this package is idempotent.
+# 25_storage.js, 40_dhcp.js) are removed from that directory at install time.
+#
+# That removal runs in two places, and it has to:
+#
+#   files/99-zn515xg-status (uci-defaults)  what actually works for the image,
+#       because buildroot populates the rootfs with `apk add ... --no-scripts`,
+#       so postinst never runs there;
+#   postinst                                 covers `apk add` on a live system.
+#
+# Both are idempotent no-ops when the files are already gone.
 #
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-zn515xg-hw
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=11
+PKG_RELEASE:=12
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_MAINTAINER:=czghzh <czghzh@users.noreply.github.com>
@@ -87,6 +93,8 @@ define Package/luci-app-zn515xg-hw/install
 	$(INSTALL_BIN) ./files/515xg-clientsrate $(1)/usr/sbin/515xg-clientsrate
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DATA) ./files/luci-status-hardware.json $(1)/usr/share/rpcd/acl.d/luci-status-hardware.json
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/99-zn515xg-status $(1)/etc/uci-defaults/99-zn515xg-status
 endef
 
 # Move the stock blocks this package replaces out of the directory scan.

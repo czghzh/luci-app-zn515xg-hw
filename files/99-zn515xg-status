@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# Remove the stock Status -> Overview blocks that luci-app-zn515xg-hw replaces.
+#
+#   10_system.js   -> 15_hw.js         ("硬件监控")
+#   20_memory.js   -> 22_memstore.js   ("内存与储存")
+#   25_storage.js  -> 22_memstore.js   ("内存与储存")
+#   40_dhcp.js     -> 23_dhcpclients.js ("在线客户端"; ours also carries the IPv6
+#                     address and the physical port, the stock one is DHCPv4 only)
+#
+# Why this is not done in the package postinst:
+# buildroot populates the image rootfs with `apk add ... --no-scripts`, so
+# postinst never runs there - the stock blocks came back on every flash.  The
+# postinst still handles `apk add` on a live system; this script covers the
+# image, and /etc/init.d/boot runs uci-defaults early enough that LuCI never
+# sees the files.
+#
+# The include loader scans the directory at runtime (fs.list of
+# /www/luci-static/resources/view/status/include), so a deleted file disappears
+# from the page immediately - no browser cache to fight.
+#
+INC=/www/luci-static/resources/view/status/include
+
+for f in 10_system 20_memory 25_storage 40_dhcp; do
+	[ -f "$INC/$f.js" ] && rm -f "$INC/$f.js"
+done
+
+exit 0
